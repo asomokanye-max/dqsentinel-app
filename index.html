@@ -154,7 +154,7 @@ footer{text-align:center;font-size:.75rem;color:var(--mut);padding:10px 16px 24p
   </section>
 </div>
 </main>
-<footer>DQ-Sentinel Osun pilot v0.1 · Institute of Public Health, Obafemi Awolowo University, Ile-Ife · Aggregate facility counts only; no patient data · The tool never changes data in DHIS2</footer>
+<footer>DQ-Sentinel Osun pilot v0.2 · Institute of Public Health, Obafemi Awolowo University, Ile-Ife · Aggregate facility counts only; no patient data · The tool never changes data in DHIS2</footer>
 
 <script>
 const SUPABASE_URL="https://xzwjhbepttecghwvoogz.supabase.co";
@@ -295,7 +295,7 @@ function runChecks(DS){
 $("run").onclick=async()=>{
   if(!DS)return;$("run").disabled=true;$("ctlMsg").innerHTML='<span class="hint">Running checks…</span>';
   const res=runChecks(DS);
-  const {data,error}=await db.rpc("save_run",{p_lga:$("lga").value,p_period:$("per").value,p_expected:res.expected,p_received:res.received,p_flags:res.flags,p_settings:{version:"0.1",z:3.5,history:12}});
+  const {data,error}=await db.rpc("save_run",{p_lga:$("lga").value,p_period:$("per").value,p_expected:res.expected,p_received:res.received,p_flags:res.flags,p_settings:{version:"0.2",z:3.5,history:12}});
   $("run").disabled=false;
   if(error){$("ctlMsg").innerHTML='<span class="err">'+esc(error.message)+'</span>';return;}
   $("ctlMsg").innerHTML=`<span class="good">Checks complete: ${res.flags.length} flag(s), ${data.new_flags} new. Earlier decisions were kept.</span>`;
@@ -318,7 +318,11 @@ function spark(fl){
   return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="History">${band}<path d="${path}" fill="none" stroke="#2E75B6" stroke-width="2"/>${s.map((v,i)=>v===null?"":`<circle cx="${xs(i)}" cy="${ys(v)}" r="${i===L?5:2.5}" fill="${i===L?"#b3261e":"#2E75B6"}"/>`).join("")}<text x="${p}" y="${H-4}" font-size="10" fill="#5b6575">${mlab(DS.months[0])}</text><text x="${W-p}" y="${H-4}" font-size="10" fill="#5b6575" text-anchor="end">${mlab(DS.months[L])}</text>${last!==null?`<text x="${xs(L)-10}" y="${ys(last)-8}" font-size="11" fill="#b3261e" text-anchor="end">${last}</text>`:""}</svg><div class="hint">Last 24 months for this facility. Red point: the month being checked. Shaded bar: expected range.</div>`;
 }
 const REJ=["Figure is correct (checked against register)","Real change (outbreak, campaign, outreach, staff change)","Facility opened/closed or services changed","Other"];
-const CONF=["Typing or transcription error","Tally/counting error","Wrong cell or wrong month","Form copied from previous month","Report not submitted","Other"];
+const CONF=["Typing or transcription error","Tally/counting error","Wrong cell or wrong month","Other"];
+const OPTS={
+ "Missing report":{conf:["Report not submitted","Report submitted but not entered in DHIS2","Other"],rej:["Report now in DHIS2 (submitted late)","Facility closed or not expected to report this month","Other"]},
+ "Copied report":{conf:["Form copied from previous month","Figures not tallied from registers","Other"],rej:["Figures genuinely the same (checked against registers)","Other"]}};
+const optsFor=fl=>!fl.de_code&&OPTS[fl.kind]?OPTS[fl.kind]:{conf:CONF,rej:REJ};
 function render(){
   const tiles=$("tiles");
   if(!DS){tiles.innerHTML="";$("flags").innerHTML='<p class="hint">No data for this LGA yet.</p>';return;}
@@ -334,19 +338,20 @@ function render(){
     return `<div class="flag ${fl.status}" id="fl-${fl.id}">
       <div class="fh"><div><span class="fac">${esc(facName(fl.facility_id))}</span> <span class="kind">· ${esc(fl.de_code?deName(fl.de_code):"Whole report")} · ${esc(fl.kind)}</span></div>${st}</div>
       <div class="vals"><b>${esc(fl.detail)}</b></div><div class="why">${esc(fl.message)}</div>
-      <details class="chart"><summary class="hint">Show history</summary>${spark(fl)}</details>
+      ${fl.de_code?`<div style="margin-top:6px"><button class="sec sm" data-chart="${fl.id}">Show chart</button><div id="ch-${fl.id}" class="hidden" style="margin-top:6px">${spark(fl)}</div></div>`:""}
       ${fl.status==="open"?`<div class="acts">
-        <div><label>Confirmed error: what was wrong?</label><select id="cr-${fl.id}">${CONF.map(x=>`<option>${x}</option>`).join("")}</select></div>
-        <div><label>Correct figure (if known)</label><input id="cv-${fl.id}" type="number" style="width:110px"></div>
+        <div><label>Confirmed error: what was wrong?</label><select id="cr-${fl.id}">${optsFor(fl).conf.map(x=>`<option>${x}</option>`).join("")}</select></div>
+        ${fl.de_code?`<div><label>Correct figure (if known)</label><input id="cv-${fl.id}" type="number" style="width:110px"></div>`:""}
         <button class="ok sm" data-dec="confirmed" data-id="${fl.id}">Confirmed error</button></div>
-        <div class="acts"><div><label>Not an error: why?</label><select id="rr-${fl.id}">${REJ.map(x=>`<option>${x}</option>`).join("")}</select></div>
+        <div class="acts"><div><label>Not an error: why?</label><select id="rr-${fl.id}">${optsFor(fl).rej.map(x=>`<option>${x}</option>`).join("")}</select></div>
         <button class="no sm" data-dec="rejected" data-id="${fl.id}">Not an error</button></div>`
       :`<div class="hint" style="margin-top:6px">Decision: ${esc(fl.reason||"")}${fl.corrected_value!==null&&fl.corrected_value!==undefined?" · correct figure "+fl.corrected_value:""} · ${fl.decided_at?new Date(fl.decided_at).toLocaleDateString():""} <button class="sec sm" data-dec="open" data-id="${fl.id}">Undo</button></div>`}
     </div>`;}).join("");
+  document.querySelectorAll("[data-chart]").forEach(b=>b.onclick=()=>{const c=$("ch-"+b.dataset.chart);const show=c.classList.contains("hidden");c.classList.toggle("hidden",!show);b.textContent=show?"Hide chart":"Show chart";});
   document.querySelectorAll("[data-dec]").forEach(b=>b.onclick=async()=>{
     const id=b.dataset.id,dec=b.dataset.dec;b.disabled=true;
     const reason=dec==="confirmed"?$("cr-"+id).value:dec==="rejected"?$("rr-"+id).value:null;
-    const cv=dec==="confirmed"&&$("cv-"+id).value!==""?Number($("cv-"+id).value):null;
+    const cvEl=$("cv-"+id);const cv=dec==="confirmed"&&cvEl&&cvEl.value!==""?Number(cvEl.value):null;
     const {error}=await db.rpc("decide_flag",{p_flag:id,p_status:dec,p_reason:reason,p_corrected:cv});
     if(error){alertBox(error.message);b.disabled=false;return;}
     await loadFlags();
