@@ -1,0 +1,14 @@
+{
+  "name": "DQ-Sentinel Osun: DHIS2 data quality checks",
+  "short_name": "DQ-Sentinel",
+  "description": "Monthly data quality checks for DHIS2 facility reports (pilot). Aggregate data only.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f5f7fa",
+  "theme_color": "#1F4E79",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

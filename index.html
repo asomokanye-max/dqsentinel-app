@@ -4,6 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>DQ-Sentinel Osun</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1F4E79">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="DQ-Sentinel">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{--blue:#1F4E79;--blue2:#2E75B6;--bg:#f5f7fa;--card:#fff;--ink:#1d2430;--mut:#5b6575;--line:#dde3ea;--red:#b3261e;--redbg:#fbe9e7;--amb:#8a5a00;--ambbg:#fff4dc;--grn:#1e7a46;--grnbg:#e6f4ec}
@@ -61,6 +67,7 @@ footer{text-align:center;font-size:.75rem;color:var(--mut);padding:10px 16px 24p
 </style>
 </head>
 <body>
+<div id="offBar" class="hidden" style="background:#fff4dc;color:#8a5a00;font-size:.85rem;padding:8px 14px;text-align:center">You are offline. What is on screen stays visible; uploading, running checks and saving decisions need a connection.</div>
 <header>
   <div><h1>DQ-Sentinel Osun</h1><div class="who">Monthly data quality checks for DHIS2 facility reports · Pilot version</div></div>
   <div class="who" id="who"></div>
@@ -88,6 +95,7 @@ footer{text-align:center;font-size:.75rem;color:var(--mut);padding:10px 16px 24p
     <button data-v="review" class="on">Review flags</button>
     <button data-v="upload">Upload DHIS2 data</button>
     <button data-v="report">Monthly report</button>
+    <button data-v="overview">Overview and export</button>
     <button data-v="admin" class="hidden" id="tabAdmin">Admin</button>
   </div>
 
@@ -137,6 +145,19 @@ footer{text-align:center;font-size:.75rem;color:var(--mut);padding:10px 16px 24p
   </section>
 
   <!-- report -->
+  <section id="s-overview" class="hidden">
+    <div class="card"><h2>Overview by month</h2>
+      <p class="hint">All months with checks, for the LGAs you can see. Precision = confirmed errors ÷ decided flags. Minutes = time recorded for validation.</p>
+      <div id="ovBox">…</div></div>
+    <div class="card"><h2>Export for analysis</h2>
+      <p class="hint">CSV files for analysis in Stata or Excel. Facility names are included; the data are aggregate counts only. Keep the files on a secure computer.</p>
+      <div class="controls">
+        <button id="exFlags" class="sec">Download flags and decisions (CSV)</button>
+        <button id="exTime" class="sec">Download time records (CSV)</button>
+        <button id="exRuns" class="sec">Download check runs (CSV)</button></div>
+      <div id="exMsg" class="msg"></div></div>
+  </section>
+
   <section id="s-report" class="hidden">
     <div class="card" id="reportBox"></div>
     <div class="noprint"><button id="print" class="sec">Print or save as PDF</button></div>
@@ -154,12 +175,16 @@ footer{text-align:center;font-size:.75rem;color:var(--mut);padding:10px 16px 24p
   </section>
 </div>
 </main>
-<footer>DQ-Sentinel Osun pilot v0.2 · Institute of Public Health, Obafemi Awolowo University, Ile-Ife · Aggregate facility counts only; no patient data · The tool never changes data in DHIS2</footer>
+<footer>DQ-Sentinel Osun pilot v0.3 · Institute of Public Health, Obafemi Awolowo University, Ile-Ife · Aggregate facility counts only; no patient data · The tool never changes data in DHIS2</footer>
 
 <script>
 const SUPABASE_URL="https://xzwjhbepttecghwvoogz.supabase.co";
 const SUPABASE_KEY="sb_publishable_eVkgrZ3ZM5XqWx-uLfR0rg_fluTH8Gi";
+if(typeof supabase==="undefined"){document.body.insertAdjacentHTML("afterbegin",'<div style="background:#fbe9e7;color:#b3261e;padding:14px;text-align:center">DQ-Sentinel cannot start without a connection the first time. Connect to the internet and reload.</div>');throw new Error("offline first load");}
 const db=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));}
+const offState=()=>document.getElementById("offBar").classList.toggle("hidden",navigator.onLine);
+window.addEventListener("online",offState);window.addEventListener("offline",offState);offState();
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const MN=["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -295,7 +320,7 @@ function runChecks(DS){
 $("run").onclick=async()=>{
   if(!DS)return;$("run").disabled=true;$("ctlMsg").innerHTML='<span class="hint">Running checks…</span>';
   const res=runChecks(DS);
-  const {data,error}=await db.rpc("save_run",{p_lga:$("lga").value,p_period:$("per").value,p_expected:res.expected,p_received:res.received,p_flags:res.flags,p_settings:{version:"0.2",z:3.5,history:12}});
+  const {data,error}=await db.rpc("save_run",{p_lga:$("lga").value,p_period:$("per").value,p_expected:res.expected,p_received:res.received,p_flags:res.flags,p_settings:{version:"0.3",z:3.5,history:12}});
   $("run").disabled=false;
   if(error){$("ctlMsg").innerHTML='<span class="err">'+esc(error.message)+'</span>';return;}
   $("ctlMsg").innerHTML=`<span class="good">Checks complete: ${res.flags.length} flag(s), ${data.new_flags} new. Earlier decisions were kept.</span>`;
@@ -492,12 +517,62 @@ $("clearLga").onclick=async()=>{
   if(!error){$("confirmName").value="";await loadPeriods();}
 };
 
+// ================= overview and export (D10, D11) =================
+const lgaName=c=>{const l=LGAS.find(x=>x.code===c);return l?l.name:c;};
+async function renderOverview(){
+  const box=$("ovBox");box.innerHTML='<span class="hint">Loading…</span>';
+  try{
+    const [fl,runs,rt]=await Promise.all([
+      fetchAll(()=>db.from("flags").select("lga,period,status,kind").order("period")),
+      fetchAll(()=>db.from("runs").select("lga,period,n_expected,n_received,run_at").order("run_at")),
+      fetchAll(()=>db.from("review_time").select("lga,period,minutes").order("period"))]);
+    const key=(l,p)=>l+"|"+p;const rows={};
+    const get=(l,p)=>rows[key(l,p)]||(rows[key(l,p)]={lga:l,period:p,exp:null,rec:null,flags:0,conf:0,rej:0,open:0,min:0});
+    runs.forEach(r=>{const x=get(r.lga,r.period);x.exp=r.n_expected;x.rec=r.n_received;});
+    fl.forEach(f=>{const x=get(f.lga,f.period);x.flags++;if(f.status==="confirmed")x.conf++;else if(f.status==="rejected")x.rej++;else x.open++;});
+    rt.forEach(t=>{get(t.lga,t.period).min+=Number(t.minutes);});
+    const list=Object.values(rows).sort((a,b)=>b.period.localeCompare(a.period)||a.lga.localeCompare(b.lga));
+    if(!list.length){box.innerHTML='<p class="hint">No checks have been run yet.</p>';return;}
+    const tot={flags:0,conf:0,rej:0,min:0};list.forEach(x=>{tot.flags+=x.flags;tot.conf+=x.conf;tot.rej+=x.rej;tot.min+=x.min;});
+    box.innerHTML=`<table><tr><th>Month</th><th>LGA</th><th>Reports received</th><th>Flags</th><th>Confirmed</th><th>Not errors</th><th>Open</th><th>Precision</th><th>Minutes</th></tr>
+      ${list.map(x=>`<tr><td>${mlab(ym(x.period))}</td><td>${esc(lgaName(x.lga))}</td><td>${x.exp?`${x.rec} of ${x.exp} (${Math.round(100*x.rec/x.exp)}%)`:"–"}</td><td>${x.flags}</td><td>${x.conf}</td><td>${x.rej}</td><td>${x.open}</td><td>${x.conf+x.rej?Math.round(100*x.conf/(x.conf+x.rej))+"%":"–"}</td><td>${x.min||"–"}</td></tr>`).join("")}
+      <tr><th colspan="3">All months</th><th>${tot.flags}</th><th>${tot.conf}</th><th>${tot.rej}</th><th>${tot.flags-tot.conf-tot.rej}</th><th>${tot.conf+tot.rej?Math.round(100*tot.conf/(tot.conf+tot.rej))+"%":"–"}</th><th>${tot.min||"–"}</th></tr></table>`;
+  }catch(e){box.innerHTML='<span class="err">'+esc(e.message)+'</span>';}
+}
+function csvDownload(name,head,rows){
+  const q=v=>{if(v===null||v===undefined)return "";const t=String(v);return /[",\n\r]/.test(t)?'"'+t.replace(/"/g,'""')+'"':t;};
+  const text="\uFEFF"+[head.join(","),...rows.map(r=>r.map(q).join(","))].join("\r\n");
+  const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([text],{type:"text/csv;charset=utf-8"}));a.download=name;document.body.appendChild(a);a.click();a.remove();
+}
+const stamp=()=>new Date().toISOString().slice(0,10);
+$("exFlags").onclick=async()=>{
+  $("exMsg").innerHTML='<span class="hint">Preparing…</span>';
+  try{
+    const [fl,fac]=await Promise.all([fetchAll(()=>db.from("flags").select("*").order("period")),fetchAll(()=>db.from("facilities").select("id,name,lga").order("name"))]);
+    const fn={};fac.forEach(f=>fn[f.id]=f.name);
+    csvDownload(`dqsentinel_flags_${stamp()}.csv`,["flag_id","lga","period","facility","data_element","kind","score","priority","reported","expected","range_low","range_high","status","reason","corrected_value","decided_at","created_at","message"],
+      fl.map(f=>[f.id,f.lga,f.period,fn[f.facility_id]||f.facility_id,f.de_code||"",f.kind,f.score,pri(f.score)[0],f.reported,f.expected,f.lo,f.hi,f.status,f.reason,f.corrected_value,f.decided_at,f.created_at,f.message]));
+    $("exMsg").innerHTML=`<span class="good">Downloaded ${fl.length} flags.</span>`;
+  }catch(e){$("exMsg").innerHTML='<span class="err">'+esc(e.message)+'</span>';}
+};
+$("exTime").onclick=async()=>{
+  try{const rt=await fetchAll(()=>db.from("review_time").select("*").order("logged_at"));
+    csvDownload(`dqsentinel_time_${stamp()}.csv`,["lga","period","minutes","note","logged_at"],rt.map(t=>[t.lga,t.period,t.minutes,t.note,t.logged_at]));
+    $("exMsg").innerHTML=`<span class="good">Downloaded ${rt.length} time records.</span>`;}catch(e){$("exMsg").innerHTML='<span class="err">'+esc(e.message)+'</span>';}
+};
+$("exRuns").onclick=async()=>{
+  try{const ru=await fetchAll(()=>db.from("runs").select("*").order("run_at"));
+    csvDownload(`dqsentinel_runs_${stamp()}.csv`,["run_id","lga","period","facilities_expected","reports_received","flags","settings","run_at"],ru.map(x=>[x.id,x.lga,x.period,x.n_expected,x.n_received,x.n_flags,JSON.stringify(x.settings||{}),x.run_at]));
+    $("exMsg").innerHTML=`<span class="good">Downloaded ${ru.length} check runs.</span>`;}catch(e){$("exMsg").innerHTML='<span class="err">'+esc(e.message)+'</span>';}
+};
+
 // ================= navigation =================
 document.querySelectorAll(".tabs [data-v]").forEach(b=>b.onclick=()=>{
   VIEW=b.dataset.v;document.querySelectorAll(".tabs [data-v]").forEach(x=>x.classList.toggle("on",x===b));
-  ["review","upload","report","admin"].forEach(v=>$("s-"+v).classList.toggle("hidden",v!==VIEW));
+  ["review","upload","report","overview","admin"].forEach(v=>$("s-"+v).classList.toggle("hidden",v!==VIEW));
   $("runBox").classList.toggle("hidden",VIEW!=="review");
-  if(VIEW==="report")renderReport();if(VIEW==="upload")loadUploads();if(VIEW==="admin")loadUsers();
+  document.querySelector(".card.noprint").classList.toggle("hidden",VIEW==="overview");
+  if(VIEW==="report")renderReport();if(VIEW==="upload")loadUploads();if(VIEW==="admin")loadUsers();if(VIEW==="overview")renderOverview();
 });
 $("lga").onchange=loadPeriods;$("per").onchange=loadMonth;
 start();
