@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DQ-Sentinel Osun</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--blue:#1F4E79;--blue2:#2E75B6;--bg:#f5f7fa;--card:#fff;--ink:#1d2430;--mut:#5b6575;--line:#dde3ea;--red:#b3261e;--redbg:#fbe9e7;--amb:#8a5a00;--ambbg:#fff4dc;--grn:#1e7a46;--grnbg:#e6f4ec}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--ink);line-height:1.45}
+header{background:var(--blue);color:#fff;padding:12px 18px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+header h1{margin:0;font-size:1.2rem}
+header .who{font-size:.82rem;opacity:.95}
+header a{color:#fff}
+main{max-width:960px;margin:0 auto;padding:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px}
+.hidden{display:none!important}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.tabs button{background:#e8eef5;color:var(--blue)}
+.tabs button.on{background:var(--blue);color:#fff}
+.controls{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
+label{font-size:.8rem;color:var(--mut);display:block;margin-bottom:3px}
+input,select,textarea{font-size:.95rem;padding:8px 10px;border:1px solid #b9c3cf;border-radius:8px;background:#fff;font-family:inherit}
+input[type=checkbox]{width:auto}
+button{font-size:.9rem;padding:8px 14px;border-radius:8px;border:0;background:var(--blue);color:#fff;cursor:pointer;font-weight:600}
+button:disabled{opacity:.5;cursor:default}
+button.sec{background:#e8eef5;color:var(--blue)}
+button.sm{font-size:.8rem;padding:6px 10px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.tile .n{font-size:1.5rem;font-weight:700;color:var(--blue)}
+.tile .l{font-size:.78rem;color:var(--mut)}
+h2{font-size:1.05rem;margin:4px 0 10px}
+.flag{border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:10px;background:#fff}
+.flag.confirmed{background:#fdf5f4}
+.flag.rejected{background:#f6f9f7}
+.fh{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center}
+.fac{font-weight:700}
+.badge{display:inline-block;border-radius:999px;padding:2px 9px;font-size:.72rem;font-weight:700}
+.b-high{background:var(--redbg);color:var(--red)}
+.b-med{background:var(--ambbg);color:var(--amb)}
+.b-low{background:#eef0f3;color:#444}
+.b-ok{background:var(--grnbg);color:var(--grn)}
+.kind{font-size:.75rem;color:var(--mut)}
+.vals{margin:6px 0;font-size:.92rem}
+.why{font-size:.88rem;color:#333}
+.acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;align-items:end}
+.acts .ok{background:var(--red)}
+.acts .no{background:var(--grn)}
+.hint{font-size:.8rem;color:var(--mut)}
+.msg{font-size:.88rem;margin-top:8px}
+.err{color:var(--red);font-weight:600}
+.good{color:var(--grn);font-weight:600}
+.warnbar{background:var(--ambbg);color:var(--amb);font-size:.82rem;padding:8px 12px;border-radius:8px;margin-bottom:12px}
+table{width:100%;border-collapse:collapse;font-size:.85rem}
+th,td{text-align:left;padding:6px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--mut)}
+footer{text-align:center;font-size:.75rem;color:var(--mut);padding:10px 16px 24px}
+@media print{header,.tabs,.noprint,footer{display:none!important}body{background:#fff}.card{border:0}main{max-width:none}}
+</style>
+</head>
+<body>
+<header>
+  <div><h1>DQ-Sentinel Osun</h1><div class="who">Monthly data quality checks for DHIS2 facility reports · Pilot version</div></div>
+  <div class="who" id="who"></div>
+</header>
+<main>
+
+<!-- ============ login ============ -->
+<div id="vLogin" class="card hidden" style="max-width:460px;margin:20px auto">
+  <h2>Sign in</h2>
+  <div class="tabs"><button id="tIn" class="on">Log in</button><button id="tUp">Create account</button></div>
+  <label for="em">Email</label><input id="em" type="email" style="width:100%" autocomplete="username">
+  <div style="height:8px"></div>
+  <label for="pw">Password (at least 8 characters)</label><input id="pw" type="password" style="width:100%" autocomplete="current-password">
+  <div id="nameBox" class="hidden" style="margin-top:8px"><label for="nm">Full name</label><input id="nm" style="width:100%"></div>
+  <div style="margin-top:12px"><button id="goAuth">Log in</button></div>
+  <div id="authMsg" class="msg"></div>
+  <p class="hint">New accounts are approved by the administrator, who assigns your LGA. Forgot your password? Ask the administrator.</p>
+</div>
+
+<div id="vPending" class="card hidden"><h2>Account waiting for approval</h2><p>Your account has been created. The administrator will assign your role and LGA. Please log in again later.</p></div>
+
+<!-- ============ app ============ -->
+<div id="vApp" class="hidden">
+  <div class="tabs noprint">
+    <button data-v="review" class="on">Review flags</button>
+    <button data-v="upload">Upload DHIS2 data</button>
+    <button data-v="report">Monthly report</button>
+    <button data-v="admin" class="hidden" id="tabAdmin">Admin</button>
+  </div>
+
+  <div class="card noprint">
+    <div class="controls">
+      <div><label for="lga">LGA</label><select id="lga"></select></div>
+      <div><label for="per">Reporting month</label><select id="per"></select></div>
+      <div id="runBox"><button id="run">Run checks</button></div>
+    </div>
+    <div id="ctlMsg" class="msg"></div>
+  </div>
+
+  <!-- review -->
+  <section id="s-review">
+    <div class="tiles" id="tiles"></div>
+    <div class="card">
+      <div class="fh"><h2 style="margin:0">Flags to review, most urgent first</h2>
+        <div><label for="show" style="display:inline">Show </label><select id="show"><option value="open">Open only</option><option value="all">All</option></select></div></div>
+      <div id="flags" style="margin-top:10px"></div>
+    </div>
+    <div class="card">
+      <h2>Time spent validating this month</h2>
+      <p class="hint">Record the minutes you spent checking this month's reports (with or without the tool). This measures whether DQ-Sentinel saves time.</p>
+      <div class="controls"><div><label for="mins">Minutes</label><input id="mins" type="number" min="1" max="600" style="width:110px"></div>
+        <div style="flex:1;min-width:200px"><label for="minNote">Note (optional)</label><input id="minNote" style="width:100%" placeholder="e.g. review with DQ-Sentinel"></div>
+        <div><button id="saveMins" class="sec">Save time</button></div></div>
+      <div id="minMsg" class="msg"></div>
+    </div>
+  </section>
+
+  <!-- upload -->
+  <section id="s-upload" class="hidden">
+    <div class="card">
+      <h2>Upload a DHIS2 export (CSV)</h2>
+      <div class="warnbar" id="synthWarn">Until the Ministry of Health approves the pilot and a data-sharing agreement is signed, upload only the synthetic sample file. Real DHIS2 data must not be uploaded before approval.</div>
+      <p class="hint">Export from DHIS2 Data Visualizer as a pivot table: Organisation unit and Period in rows, data elements in columns, facility level, monthly, at least 24 months. One file per LGA is best. The upload goes to the LGA selected above.</p>
+      <div class="controls">
+        <div><label for="file">CSV file</label><input type="file" id="file" accept=".csv,text/csv"></div>
+        <div><label for="only">Only facilities whose name contains (optional)</label><input id="only" placeholder="e.g. IC-" style="width:170px"></div>
+      </div>
+      <div style="margin-top:8px"><label style="display:inline"><input type="checkbox" id="synth" checked> This is synthetic test data</label></div>
+      <div id="preview" class="msg"></div>
+      <div style="margin-top:10px"><button id="doUpload" disabled>Upload to database</button></div>
+      <div id="upMsg" class="msg"></div>
+    </div>
+    <div class="card"><h2>Previous uploads for this LGA</h2><div id="upList" class="hint">…</div></div>
+  </section>
+
+  <!-- report -->
+  <section id="s-report" class="hidden">
+    <div class="card" id="reportBox"></div>
+    <div class="noprint"><button id="print" class="sec">Print or save as PDF</button></div>
+  </section>
+
+  <!-- admin -->
+  <section id="s-admin" class="hidden">
+    <div class="card"><h2>Users and roles</h2>
+      <p class="hint">Officer: sees and works on one LGA. State: sees both LGAs (HMIS focal person). Admin: everything, including this page. Pending: no access.</p>
+      <div id="users">…</div></div>
+    <div class="card"><h2>Remove all data for one LGA</h2>
+      <p class="hint">Use this to delete the synthetic test data before real DHIS2 data is uploaded. It removes facilities, values, runs, flags and time records for the LGA selected above. It cannot be undone.</p>
+      <div class="controls"><div><label for="confirmName">Type the LGA name exactly</label><input id="confirmName"></div><div><button id="clearLga" class="ok" style="background:var(--red)">Delete LGA data</button></div></div>
+      <div id="clearMsg" class="msg"></div></div>
+  </section>
+</div>
+</main>
+<footer>DQ-Sentinel Osun pilot v0.1 · Institute of Public Health, Obafemi Awolowo University, Ile-Ife · Aggregate facility counts only; no patient data · The tool never changes data in DHIS2</footer>
+
+<script>
+const SUPABASE_URL="https://xzwjhbepttecghwvoogz.supabase.co";
+const SUPABASE_KEY="sb_publishable_eVkgrZ3ZM5XqWx-uLfR0rg_fluTH8Gi";
+const db=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const MN=["January","February","March","April","May","June","July","August","September","October","November","December"];
+const median=a=>{const s=a.filter(v=>v!==null&&!isNaN(v)).sort((x,y)=>x-y);const n=s.length;if(!n)return null;return n%2?s[(n-1)/2]:(s[n/2-1]+s[n/2])/2;};
+const mean=a=>{const s=a.filter(v=>v!==null&&!isNaN(v));return s.length?s.reduce((x,y)=>x+y,0)/s.length:null;};
+const ym=d=>{const [y,m]=d.split("-");return {y:+y,m:+m-1};};
+const iso=p=>p.y+"-"+String(p.m+1).padStart(2,"0")+"-01";
+const mlab=p=>MN[p.m]+" "+p.y;
+const kOf=p=>p.y*12+p.m;
+const fromK=k=>({y:Math.floor(k/12),m:k%12});
+
+let ME=null,LGAS=[],DES=[],DS=null,FLAGS=[],VIEW="review",PARSED=null;
+
+// ================= auth =================
+let signUp=false;
+$("tIn").onclick=()=>{signUp=false;$("tIn").classList.add("on");$("tUp").classList.remove("on");$("nameBox").classList.add("hidden");$("goAuth").textContent="Log in";};
+$("tUp").onclick=()=>{signUp=true;$("tUp").classList.add("on");$("tIn").classList.remove("on");$("nameBox").classList.remove("hidden");$("goAuth").textContent="Create account";};
+$("goAuth").onclick=async()=>{
+  const email=$("em").value.trim(),password=$("pw").value;$("authMsg").textContent="";
+  if(!email||password.length<8){$("authMsg").innerHTML='<span class="err">Enter your email and a password of at least 8 characters.</span>';return;}
+  $("goAuth").disabled=true;
+  const r=signUp?await db.auth.signUp({email,password,options:{data:{full_name:$("nm").value.trim()}}}):await db.auth.signInWithPassword({email,password});
+  $("goAuth").disabled=false;
+  if(r.error){$("authMsg").innerHTML='<span class="err">'+esc(r.error.message)+'</span>';return;}
+  if(signUp&&!r.data.session){$("authMsg").innerHTML='<span class="good">Account created. Check your email to confirm it, then log in.</span>';return;}
+  start();
+};
+async function logout(){await db.auth.signOut();location.reload();}
+
+async function start(){
+  const {data:{session}}=await db.auth.getSession();
+  ["vLogin","vPending","vApp"].forEach(v=>$(v).classList.add("hidden"));
+  if(!session){$("vLogin").classList.remove("hidden");$("who").innerHTML="";return;}
+  const {data:p}=await db.from("profiles").select("*").eq("user_id",session.user.id).maybeSingle();
+  ME=p||{role:"pending",email:session.user.email};
+  $("who").innerHTML=esc(ME.full_name||ME.email)+" · "+esc(ME.role)+(ME.lga?" · "+esc(ME.lga):"")+' · <a href="#" id="lo">Log out</a>';
+  $("lo").onclick=e=>{e.preventDefault();logout();};
+  if(!ME||ME.role==="pending"){$("vPending").classList.remove("hidden");return;}
+  $("vApp").classList.remove("hidden");
+  if(ME.role==="admin")$("tabAdmin").classList.remove("hidden");
+  const [l,d]=await Promise.all([db.from("lgas").select("*").order("code"),db.from("data_elements").select("*").order("sort")]);
+  LGAS=l.data||[];DES=d.data||[];
+  const mine=ME.role==="officer"?LGAS.filter(x=>x.code===ME.lga):LGAS;
+  $("lga").innerHTML=mine.map(x=>`<option value="${x.code}">${esc(x.name)}</option>`).join("");
+  $("lga").disabled=mine.length<2;
+  await loadPeriods();
+}
+
+// ================= periods and data =================
+async function loadPeriods(){
+  const lga=$("lga").value;
+  const {data}=await db.from("uploads").select("first_period,last_period").eq("lga",lga);
+  const ks=(data||[]).filter(u=>u.first_period&&u.last_period);
+  if(!ks.length){$("per").innerHTML='<option value="">No data yet</option>';$("run").disabled=true;DS=null;FLAGS=[];
+    $("ctlMsg").innerHTML='<span class="hint">No data uploaded for this LGA yet. Use the Upload DHIS2 data tab first.</span>';render();return;}
+  const lo=Math.min(...ks.map(u=>kOf(ym(u.first_period)))),hi=Math.max(...ks.map(u=>kOf(ym(u.last_period))));
+  const opts=[];for(let k=hi;k>=Math.max(lo,hi-23);k--)opts.push(fromK(k));
+  $("per").innerHTML=opts.map(p=>`<option value="${iso(p)}">${mlab(p)}</option>`).join("");
+  $("run").disabled=false;$("ctlMsg").textContent="";
+  await loadMonth();
+}
+async function fetchAll(q){let out=[],from=0;for(;;){const {data,error}=await q().range(from,from+999);if(error)throw error;out=out.concat(data);if(data.length<1000)break;from+=1000;}return out;}
+async function loadData(lga,per){
+  const sel=ym(per);const startK=kOf(sel)-23;const start=iso(fromK(startK));
+  const [fac,vals]=await Promise.all([
+    db.from("facilities").select("id,name,active").eq("lga",lga).order("name"),
+    fetchAll(()=>db.from("dv").select("facility_id,period,de_code,value").eq("lga",lga).gte("period",start).lte("period",per).order("period"))]);
+  const months=[];for(let k=startK;k<=kOf(sel);k++)months.push(fromK(k));
+  const ind=DES.map(d=>({k:d.code,n:d.name,seasonal:d.seasonal}));
+  const data={};(fac.data||[]).forEach(f=>{data[f.id]={};ind.forEach(i=>data[f.id][i.k]=months.map(()=>null));});
+  vals.forEach(v=>{if(!data[v.facility_id])return;const i=kOf(ym(v.period))-startK;if(i>=0&&i<months.length&&v.value!==null)data[v.facility_id][v.de_code][i]=Number(v.value);});
+  return {fac:(fac.data||[]).filter(f=>f.active),data,months,ind,L:months.length-1};
+}
+async function loadMonth(){
+  const lga=$("lga").value,per=$("per").value;if(!per)return;
+  $("ctlMsg").innerHTML='<span class="hint">Loading…</span>';
+  try{DS=await loadData(lga,per);}catch(e){$("ctlMsg").innerHTML='<span class="err">'+esc(e.message)+'</span>';return;}
+  await loadFlags();
+  const {data:runs}=await db.from("runs").select("run_at").eq("lga",lga).eq("period",per).order("run_at",{ascending:false}).limit(1);
+  $("ctlMsg").innerHTML=runs&&runs.length?'<span class="hint">Checks last run '+new Date(runs[0].run_at).toLocaleString()+'. Run again after new data is uploaded; your decisions are kept.</span>':'<span class="hint">Checks have not been run for this month yet. Click Run checks.</span>';
+  if(VIEW==="report")renderReport();if(VIEW==="upload")loadUploads();
+}
+async function loadFlags(){
+  const {data}=await db.from("flags").select("*").eq("lga",$("lga").value).eq("period",$("per").value);
+  FLAGS=(data||[]).sort((a,b)=>(a.status==="open"?0:1)-(b.status==="open"?0:1)||b.score-a.score);render();
+}
+
+// ================= checks (same rules as the demo) =================
+function runChecks(DS){
+  const flags=[];let expected=0,received=0;const IND=DS.ind,M=DS.months,L=DS.L;
+  const mf=(series,m)=>{const same=[],all=[];for(let i=0;i<L;i++){if(series[i]===null)continue;all.push(series[i]);if(M[i].m===m)same.push(series[i]);}const a=mean(all),s=mean(same);return a&&s?s/a:1;};
+  DS.fac.forEach(f=>{
+    const d=DS.data[f.id];
+    const hist12=IND.some(i=>d[i.k].slice(Math.max(0,L-12),L).some(v=>v!==null));
+    const reported=IND.some(i=>d[i.k][L]!==null);
+    if(!hist12&&!reported)return;
+    expected++;
+    if(!reported){flags.push({f,kind:"Missing report",score:92,ind:null,text:`No ${mlab(M[L])} report received for this facility, although it reported in the past 12 months.`,vals:"Report missing"});return;}
+    received++;
+    let copied=false;
+    if(L>0){const same=IND.filter(i=>d[i.k][L]!==null&&d[i.k][L]>0&&d[i.k][L]===d[i.k][L-1]).length;const nonnull=IND.filter(i=>d[i.k][L]!==null).length;
+      if(nonnull>=4&&same>=Math.max(4,Math.ceil(nonnull*0.7))){copied=true;flags.push({f,kind:"Copied report",score:78,ind:null,text:`${same} of ${nonnull} figures are exactly the same as the previous month. The form may have been copied rather than tallied from the registers.`,vals:"Identical to previous month"});}}
+    const g=k=>d[k]?d[k][L]:null;const I=k=>IND.find(i=>i.k===k);
+    if(g("ANC4")!==null&&g("ANC1")!==null&&g("ANC4")>g("ANC1")&&g("ANC4")-g("ANC1")>=3)flags.push({f,kind:"Logic rule",score:86,ind:I("ANC4"),text:`ANC 4+ visits (${g("ANC4")}) are higher than ANC first visits (${g("ANC1")}). This is rarely possible in one month; check both figures against the ANC register.`,vals:`ANC 4+ ${g("ANC4")} vs ANC first ${g("ANC1")}`});
+    if(g("DEL")!==null&&g("ANC1")!==null&&g("DEL")>2*Math.max(g("ANC1"),5))flags.push({f,kind:"Logic rule",score:74,ind:I("DEL"),text:`Deliveries (${g("DEL")}) are more than twice ANC first visits (${g("ANC1")}), which is unusual.`,vals:`Deliveries ${g("DEL")} vs ANC first ${g("ANC1")}`});
+    if(copied)return;
+    IND.forEach(ind=>{
+      const s=d[ind.k];const x=s[L];if(x===null)return;
+      if(x<0){flags.push({f,kind:"Impossible value",score:95,ind,text:"A negative number was entered.",vals:`Reported ${x}`,x});return;}
+      const fac=i=>ind.seasonal?mf(s,M[i].m):1;
+      const hist=[];for(let i=Math.max(0,L-12);i<L;i++)if(s[i]!==null)hist.push(s[i]/fac(i));
+      if(hist.length<6)return;
+      const med=median(hist);const sf=fac(L);const exp=med*sf;
+      const mad=(median(hist.map(v=>Math.abs(v-med)))*1.4826)||Math.sqrt(Math.max(med,1));
+      const scale=Math.max(mad*sf,Math.sqrt(Math.max(exp,1)));
+      const lo=Math.max(0,Math.round(exp-3.5*scale)),hi=Math.round(exp+3.5*scale);
+      if(x===0&&med>=8){flags.push({f,kind:"Implausible zero",score:82,ind,text:`Reported zero, but this facility usually reports about ${Math.round(exp)} for this month. Check whether the cell was left blank or the register not tallied.`,vals:`Reported 0 · expected about ${Math.round(exp)} (range ${lo} to ${hi})`,x,exp,lo,hi});return;}
+      const z=(x-exp)/scale;
+      if(Math.abs(z)>3.5&&Math.abs(x-exp)>=5){
+        const ratio=exp>0?x/exp:0;let hint="";
+        if(ratio>7&&ratio<13)hint=" The value is about ten times the usual level, which often means an extra digit was typed.";
+        else if(ratio<0.2)hint=" The value is far below the usual level; check for a missing tally or a wrong cell.";
+        else if(z>0)hint=" Check the register; an entry from another line or month may have been added.";
+        else hint=" Check whether part of the register was not counted.";
+        flags.push({f,kind:"Unusual value",score:Math.round(Math.min(99,50+Math.abs(z)*4)),ind,text:`Far ${z>0?"above":"below"} what this facility normally reports for ${mlab(M[L])}.${hint}`,vals:`Reported ${x} · expected about ${Math.round(exp)} (range ${lo} to ${hi})`,x,exp,lo,hi});
+      }
+    });
+  });
+  const merged={};flags.forEach(fl=>{const key=fl.f.id+"|"+(fl.ind?fl.ind.k:fl.kind);if(!merged[key])merged[key]=fl;else{const a=merged[key];const keep=a.score>=fl.score?a:fl,other=keep===a?fl:a;keep.text+=" Also: "+other.text;keep.kind+=" + "+other.kind;if(keep.x===undefined&&other.x!==undefined){keep.x=other.x;keep.exp=other.exp;keep.lo=other.lo;keep.hi=other.hi;}merged[key]=keep;}});
+  const out=Object.values(merged).map(fl=>({fac:fl.f.id,de:fl.ind?fl.ind.k:null,key:fl.f.id+"|"+(fl.ind?fl.ind.k:fl.kind),kind:fl.kind,score:fl.score,msg:fl.text,detail:fl.vals,x:fl.x??null,exp:fl.exp!==undefined?Math.round(fl.exp):null,lo:fl.lo??null,hi:fl.hi??null}));
+  return {flags:out,expected,received};
+}
+$("run").onclick=async()=>{
+  if(!DS)return;$("run").disabled=true;$("ctlMsg").innerHTML='<span class="hint">Running checks…</span>';
+  const res=runChecks(DS);
+  const {data,error}=await db.rpc("save_run",{p_lga:$("lga").value,p_period:$("per").value,p_expected:res.expected,p_received:res.received,p_flags:res.flags,p_settings:{version:"0.1",z:3.5,history:12}});
+  $("run").disabled=false;
+  if(error){$("ctlMsg").innerHTML='<span class="err">'+esc(error.message)+'</span>';return;}
+  $("ctlMsg").innerHTML=`<span class="good">Checks complete: ${res.flags.length} flag(s), ${data.new_flags} new. Earlier decisions were kept.</span>`;
+  LASTRUN=res;await loadFlags();
+};
+let LASTRUN=null;
+
+// ================= review page =================
+const pri=s=>s>=80?["High","b-high"]:s>=60?["Medium","b-med"]:["Low","b-low"];
+const facName=id=>{const f=DS&&DS.fac.find(x=>x.id===id);return f?f.name:"(facility)";};
+const deName=k=>{const d=DES.find(x=>x.code===k);return d?d.name:"";};
+function spark(fl){
+  if(!DS||!fl.de_code||!DS.data[fl.facility_id])return "";
+  const s=DS.data[fl.facility_id][fl.de_code];const W=520,H=110,p=24,L=DS.L;
+  const vals=s.filter(v=>v!==null);if(!vals.length)return "";
+  const max=Math.max(...vals,fl.hi||0)*1.1||1;const xs=i=>p+i*(W-2*p)/Math.max(1,s.length-1);const ys=v=>H-p-(v/max)*(H-2*p);
+  let band="";if(fl.hi!==null&&fl.hi!==undefined){band=`<rect x="${xs(L)-8}" y="${ys(fl.hi)}" width="16" height="${Math.max(2,ys(fl.lo)-ys(fl.hi))}" fill="#2E75B6" opacity=".18"/>`;}
+  let path="",pen=false;s.forEach((v,i)=>{if(v===null){pen=false;return;}path+=(pen?"L":"M")+xs(i).toFixed(1)+","+ys(v).toFixed(1);pen=true;});
+  const last=s[L];
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="History">${band}<path d="${path}" fill="none" stroke="#2E75B6" stroke-width="2"/>${s.map((v,i)=>v===null?"":`<circle cx="${xs(i)}" cy="${ys(v)}" r="${i===L?5:2.5}" fill="${i===L?"#b3261e":"#2E75B6"}"/>`).join("")}<text x="${p}" y="${H-4}" font-size="10" fill="#5b6575">${mlab(DS.months[0])}</text><text x="${W-p}" y="${H-4}" font-size="10" fill="#5b6575" text-anchor="end">${mlab(DS.months[L])}</text>${last!==null?`<text x="${xs(L)-10}" y="${ys(last)-8}" font-size="11" fill="#b3261e" text-anchor="end">${last}</text>`:""}</svg><div class="hint">Last 24 months for this facility. Red point: the month being checked. Shaded bar: expected range.</div>`;
+}
+const REJ=["Figure is correct (checked against register)","Real change (outbreak, campaign, outreach, staff change)","Facility opened/closed or services changed","Other"];
+const CONF=["Typing or transcription error","Tally/counting error","Wrong cell or wrong month","Form copied from previous month","Report not submitted","Other"];
+function render(){
+  const tiles=$("tiles");
+  if(!DS){tiles.innerHTML="";$("flags").innerHTML='<p class="hint">No data for this LGA yet.</p>';return;}
+  const open=FLAGS.filter(f=>f.status==="open").length,conf=FLAGS.filter(f=>f.status==="confirmed").length,rej=FLAGS.filter(f=>f.status==="rejected").length;
+  const decided=conf+rej;
+  tiles.innerHTML=[["Facilities in LGA",DS.fac.length],["Flags this month",FLAGS.length],["Still open",open],["Confirmed errors",conf],["Not errors",rej],["Precision so far",decided?Math.round(100*conf/decided)+"%":"–"]]
+    .map(t=>`<div class="tile"><div class="n">${t[1]}</div><div class="l">${t[0]}</div></div>`).join("");
+  const list=$("show").value==="open"?FLAGS.filter(f=>f.status==="open"):FLAGS;
+  if(!FLAGS.length){$("flags").innerHTML='<p class="hint">No flags for this month. Run checks after uploading data.</p>';return;}
+  if(!list.length){$("flags").innerHTML='<p class="good">All flags for this month have been reviewed. Choose "All" to see them.</p>';return;}
+  $("flags").innerHTML=list.map(fl=>{const [p,c]=pri(fl.score);
+    const st=fl.status==="confirmed"?`<span class="badge b-high">Confirmed error</span>`:fl.status==="rejected"?`<span class="badge b-ok">Not an error</span>`:`<span class="badge ${c}">${p} priority</span>`;
+    return `<div class="flag ${fl.status}" id="fl-${fl.id}">
+      <div class="fh"><div><span class="fac">${esc(facName(fl.facility_id))}</span> <span class="kind">· ${esc(fl.de_code?deName(fl.de_code):"Whole report")} · ${esc(fl.kind)}</span></div>${st}</div>
+      <div class="vals"><b>${esc(fl.detail)}</b></div><div class="why">${esc(fl.message)}</div>
+      <details class="chart"><summary class="hint">Show history</summary>${spark(fl)}</details>
+      ${fl.status==="open"?`<div class="acts">
+        <div><label>Confirmed error: what was wrong?</label><select id="cr-${fl.id}">${CONF.map(x=>`<option>${x}</option>`).join("")}</select></div>
+        <div><label>Correct figure (if known)</label><input id="cv-${fl.id}" type="number" style="width:110px"></div>
+        <button class="ok sm" data-dec="confirmed" data-id="${fl.id}">Confirmed error</button></div>
+        <div class="acts"><div><label>Not an error: why?</label><select id="rr-${fl.id}">${REJ.map(x=>`<option>${x}</option>`).join("")}</select></div>
+        <button class="no sm" data-dec="rejected" data-id="${fl.id}">Not an error</button></div>`
+      :`<div class="hint" style="margin-top:6px">Decision: ${esc(fl.reason||"")}${fl.corrected_value!==null&&fl.corrected_value!==undefined?" · correct figure "+fl.corrected_value:""} · ${fl.decided_at?new Date(fl.decided_at).toLocaleDateString():""} <button class="sec sm" data-dec="open" data-id="${fl.id}">Undo</button></div>`}
+    </div>`;}).join("");
+  document.querySelectorAll("[data-dec]").forEach(b=>b.onclick=async()=>{
+    const id=b.dataset.id,dec=b.dataset.dec;b.disabled=true;
+    const reason=dec==="confirmed"?$("cr-"+id).value:dec==="rejected"?$("rr-"+id).value:null;
+    const cv=dec==="confirmed"&&$("cv-"+id).value!==""?Number($("cv-"+id).value):null;
+    const {error}=await db.rpc("decide_flag",{p_flag:id,p_status:dec,p_reason:reason,p_corrected:cv});
+    if(error){alertBox(error.message);b.disabled=false;return;}
+    await loadFlags();
+  });
+}
+function alertBox(m){$("ctlMsg").innerHTML='<span class="err">'+esc(m)+'</span>';}
+$("show").onchange=render;
+$("saveMins").onclick=async()=>{const m=Number($("mins").value);if(!(m>0&&m<=600)){$("minMsg").innerHTML='<span class="err">Enter minutes between 1 and 600.</span>';return;}
+  const {error}=await db.rpc("log_time",{p_lga:$("lga").value,p_period:$("per").value,p_minutes:m,p_note:$("minNote").value});
+  $("minMsg").innerHTML=error?'<span class="err">'+esc(error.message)+'</span>':'<span class="good">Saved.</span>';if(!error){$("mins").value="";$("minNote").value="";}};
+
+// ================= upload =================
+function parseCSV(text){
+  text=text.replace(/^﻿/,"");const rows=[];let row=[],f="",q=false;
+  for(let i=0;i<text.length;i++){const c=text[i];
+    if(q){if(c==='"'){if(text[i+1]==='"'){f+='"';i++;}else q=false;}else f+=c;}
+    else if(c==='"')q=true;else if(c===','){row.push(f);f="";}
+    else if(c==='\n'||c==='\r'){if(c==='\r'&&text[i+1]==='\n')i++;row.push(f);rows.push(row);row=[];f="";}
+    else f+=c;}
+  if(f!==""||row.length){row.push(f);rows.push(row);}
+  return rows.filter(r=>r.some(x=>x.trim()!==""));
+}
+function parsePeriod(p){
+  p=String(p).trim();let m;
+  if((m=p.match(/^(\d{4})(\d{2})$/)))return{y:+m[1],m:+m[2]-1};
+  if((m=p.match(/^(\d{4})[-\/](\d{1,2})$/)))return{y:+m[1],m:+m[2]-1};
+  if((m=p.match(/^(\d{1,2})[-\/](\d{4})$/)))return{y:+m[2],m:+m[1]-1};
+  if((m=p.match(/^([A-Za-z]+)[\s\-]+(\d{2,4})$/))){const i=MN.findIndex(n=>n.toLowerCase().startsWith(m[1].toLowerCase().slice(0,3)));if(i>=0){let y=+m[2];if(y<100)y+=2000;return{y,m:i};}}
+  return null;
+}
+function matchInd(h){
+  const s=h.toLowerCase();
+  if(/anc/.test(s)&&/(4\+|4th|fourth|\b4\b|anc4|anc 4)/.test(s))return"ANC4";
+  if(/anc/.test(s)&&/(1st|first|\b1\b|anc1|anc 1)/.test(s))return"ANC1";
+  if(/malaria/.test(s)&&/(confirm|rdt|microscop|positive)/.test(s))return"MAL";
+  if(/deliver/.test(s))return"DEL";
+  if(/(penta|dpt|pentavalent)/.test(s)&&/3/.test(s))return"PENTA3";
+  if(/(family planning|\bfp\b)/.test(s)&&/new/.test(s))return"FP";
+  if(/(opd|out-?patient)/.test(s))return"OPD";
+  return null;
+}
+function parseExport(text,only){
+  const rows=parseCSV(text);if(rows.length<2)throw new Error("The file looks empty.");
+  const H=rows[0].map(h=>h.trim());const low=H.map(h=>h.toLowerCase());
+  const ouCol=low.findIndex(h=>/(organisation unit|organization unit|org ?unit|facility|orgunit)/.test(h)&&!/id$|code/.test(h));
+  const peCol=low.findIndex(h=>/period/.test(h)&&!/id$|code/.test(h));
+  if(ouCol<0)throw new Error('No "Organisation unit" column found. The first row must contain column names.');
+  if(peCol<0)throw new Error('No "Period" column found.');
+  const map=[],used={};
+  H.forEach((h,j)=>{if(j===ouCol||j===peCol)return;const k=matchInd(h);if(k&&!used[k]){used[k]=1;map.push({j,h,k});}else map.push({j,h,k:null});});
+  const recs={};const bad=new Set();let skipped=0;
+  rows.slice(1).forEach(r=>{const f=(r[ouCol]||"").trim();if(!f)return;if(only&&!f.toLowerCase().includes(only.toLowerCase())){skipped++;return;}
+    const p=parsePeriod(r[peCol]);if(!p){bad.add(r[peCol]);return;}
+    const key=f+"|"+iso(p);if(!recs[key])recs[key]={f,p:iso(p),v:{}};
+    map.forEach(m=>{if(!m.k)return;const raw=String(r[m.j]??"").replace(/,/g,"").trim();if(raw==="")return;const n=Number(raw);if(!isNaN(n))recs[key].v[m.k]=n;});});
+  const out=Object.values(recs);
+  const ps=out.map(r=>r.p).sort();
+  return {rows:out,map,facilities:new Set(out.map(r=>r.f)).size,first:ps[0],last:ps[ps.length-1],bad:[...bad].slice(0,3),skipped};
+}
+async function previewFile(){
+  const file=$("file").files[0];PARSED=null;$("doUpload").disabled=true;$("upMsg").textContent="";
+  if(!file){$("preview").textContent="";return;}
+  try{
+    const text=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=()=>rej(new Error('Could not read the file.'));r.readAsText(file);});PARSED=parseExport(text,$("only").value.trim());PARSED.name=file.name;
+    if(!PARSED.rows.length)throw new Error("No facility rows were read. Check the file, or clear the 'Only facilities' box.");
+    $("preview").innerHTML=`<p><b>${PARSED.facilities}</b> facilities, <b>${PARSED.rows.length}</b> facility-months, ${mlab(ym(PARSED.first))} to ${mlab(ym(PARSED.last))}.${PARSED.skipped?` ${PARSED.skipped} rows skipped by the name filter.`:""}${PARSED.bad.length?` <span class="err">Unreadable periods: ${esc(PARSED.bad.join(", "))}</span>`:""}</p>
+      <table><tr><th>Column in your file</th><th>Read as</th></tr>${PARSED.map.map(m=>`<tr><td>${esc(m.h)}</td><td>${m.k?esc(deName(m.k)):'<span class="hint">Not used</span>'}</td></tr>`).join("")}</table>
+      <p class="hint">These will be added to <b>${esc($("lga").selectedOptions[0].text)}</b>. Existing figures for the same facility and month are replaced.</p>`;
+    $("doUpload").disabled=false;
+  }catch(e){$("preview").innerHTML='<span class="err">'+esc(e.message)+'</span>';}
+}
+$("file").onchange=previewFile;$("only").onchange=previewFile;
+$("doUpload").onclick=async()=>{
+  if(!PARSED)return;
+  if(!$("synth").checked&&!confirm("You have marked this as REAL DHIS2 data. Upload only if the Ministry has approved the pilot and a data-sharing agreement is signed. Continue?"))return;
+  $("doUpload").disabled=true;let done=0,totalV=0;
+  for(let i=0;i<PARSED.rows.length;i+=1000){
+    $("upMsg").innerHTML=`<span class="hint">Uploading ${Math.min(i+1000,PARSED.rows.length)} of ${PARSED.rows.length}…</span>`;
+    const {data,error}=await db.rpc("upload_values",{p_lga:$("lga").value,p_filename:PARSED.name,p_synthetic:$("synth").checked,p_rows:PARSED.rows.slice(i,i+1000)});
+    if(error){$("upMsg").innerHTML='<span class="err">'+esc(error.message)+'</span>';$("doUpload").disabled=false;return;}
+    done+=Math.min(1000,PARSED.rows.length-i);totalV+=data.values;
+  }
+  $("upMsg").innerHTML=`<span class="good">Uploaded ${done} facility-months (${totalV} figures). Now choose the month and click Run checks.</span>`;
+  $("file").value="";PARSED=null;$("preview").textContent="";
+  await loadPeriods();loadUploads();
+};
+async function loadUploads(){
+  const {data}=await db.from("uploads").select("*").eq("lga",$("lga").value).order("uploaded_at",{ascending:false}).limit(20);
+  $("upList").innerHTML=data&&data.length?`<table><tr><th>When</th><th>File</th><th>Facilities</th><th>Figures</th><th>Months</th><th>Type</th></tr>${data.map(u=>`<tr><td>${new Date(u.uploaded_at).toLocaleString()}</td><td>${esc(u.filename)}</td><td>${u.n_facilities??""}</td><td>${u.n_values??""}</td><td>${u.first_period?mlab(ym(u.first_period))+" – "+mlab(ym(u.last_period)):""}</td><td>${u.synthetic?"Synthetic test":"<b>Real</b>"}</td></tr>`).join("")}</table>`:"No uploads yet.";
+}
+
+// ================= monthly report =================
+async function renderReport(){
+  const lga=$("lga").value,per=$("per").value,box=$("reportBox");
+  if(!per){box.innerHTML='<p class="hint">No data yet.</p>';return;}
+  const {data:s,error}=await db.rpc("month_summary",{p_lga:lga,p_period:per});
+  if(error){box.innerHTML='<span class="err">'+esc(error.message)+'</span>';return;}
+  const decided=s.confirmed+s.rejected;const lname=$("lga").selectedOptions[0].text;
+  const conf=FLAGS.filter(f=>f.status==="confirmed"),open=FLAGS.filter(f=>f.status==="open");
+  box.innerHTML=`<h2>Monthly data quality summary: ${esc(lname)} LGA, ${mlab(ym(per))}</h2>
+   <p class="hint">Prepared with DQ-Sentinel Osun (pilot) on ${new Date().toLocaleDateString()}. Aggregate facility data from DHIS2; no patient data.</p>
+   <table><tr><th>Measure</th><th>Value</th></tr>
+   <tr><td>Facilities expected to report</td><td>${s.expected??"–"}</td></tr>
+   <tr><td>Reports received</td><td>${s.received??"–"}${s.expected?` (${Math.round(100*s.received/s.expected)}%)`:""}</td></tr>
+   <tr><td>Figures flagged for review</td><td>${s.flags}</td></tr>
+   <tr><td>Confirmed errors</td><td>${s.confirmed}</td></tr>
+   <tr><td>Not errors</td><td>${s.rejected}</td></tr>
+   <tr><td>Still open</td><td>${s.open}</td></tr>
+   <tr><td>Precision (confirmed ÷ decided)</td><td>${decided?Math.round(100*s.confirmed/decided)+"%":"–"}</td></tr>
+   <tr><td>Time recorded for validation</td><td>${s.minutes?s.minutes+" minutes":"–"}</td></tr></table>
+   <h2 style="margin-top:16px">Flags by type</h2>
+   <table><tr><th>Type</th><th>Flags</th><th>Confirmed</th><th>Not errors</th></tr>${(s.by_kind||[]).map(k=>`<tr><td>${esc(k.kind)}</td><td>${k.n}</td><td>${k.confirmed}</td><td>${k.rejected}</td></tr>`).join("")||'<tr><td colspan="4">None</td></tr>'}</table>
+   <h2 style="margin-top:16px">Confirmed errors to correct in DHIS2 and at the facility</h2>
+   <table><tr><th>Facility</th><th>Figure</th><th>Reported</th><th>Correct figure</th><th>What was wrong</th></tr>${conf.map(f=>`<tr><td>${esc(facName(f.facility_id))}</td><td>${esc(f.de_code?deName(f.de_code):"Whole report")}</td><td>${f.reported??""}</td><td>${f.corrected_value??""}</td><td>${esc(f.reason||"")}</td></tr>`).join("")||'<tr><td colspan="5">None</td></tr>'}</table>
+   ${open.length?`<p class="hint" style="margin-top:10px">${open.length} flag(s) are still open and should be reviewed before this report is final.</p>`:""}
+   <p class="hint" style="margin-top:14px">Signed: ______________________ (LGA M&amp;E officer)&nbsp;&nbsp;&nbsp; Date: ____________</p>`;
+}
+$("print").onclick=()=>window.print();
+
+// ================= admin =================
+async function loadUsers(){
+  const {data,error}=await db.rpc("admin_users");
+  if(error){$("users").innerHTML='<span class="err">'+esc(error.message)+'</span>';return;}
+  $("users").innerHTML=`<table><tr><th>Email</th><th>Name</th><th>Role</th><th>LGA</th><th></th></tr>${data.map(u=>`<tr>
+    <td>${esc(u.email)}</td><td><input id="un-${u.user_id}" value="${esc(u.full_name||"")}" style="width:150px"></td>
+    <td><select id="ur-${u.user_id}">${["pending","officer","state","admin"].map(r=>`<option ${r===u.role?"selected":""}>${r}</option>`).join("")}</select></td>
+    <td><select id="ul-${u.user_id}"><option value="">–</option>${LGAS.map(l=>`<option value="${l.code}" ${l.code===u.lga?"selected":""}>${esc(l.name)}</option>`).join("")}</select></td>
+    <td><button class="sm" data-save="${u.user_id}">Save</button> <span id="us-${u.user_id}" class="hint"></span></td></tr>`).join("")}</table>`;
+  document.querySelectorAll("[data-save]").forEach(b=>b.onclick=async()=>{const id=b.dataset.save;
+    const {error}=await db.rpc("admin_set_role",{p_user:id,p_role:$("ur-"+id).value,p_lga:$("ul-"+id).value||null,p_name:$("un-"+id).value});
+    $("us-"+id).innerHTML=error?'<span class="err">'+esc(error.message)+'</span>':'<span class="good">Saved</span>';});
+}
+$("clearLga").onclick=async()=>{
+  const lname=$("lga").selectedOptions[0].text;
+  if(!confirm("Delete ALL data for "+lname+" LGA? This cannot be undone."))return;
+  const {data,error}=await db.rpc("admin_clear_lga",{p_lga:$("lga").value,p_confirm:$("confirmName").value.trim()});
+  $("clearMsg").innerHTML=error?'<span class="err">'+esc(error.message)+'</span>':`<span class="good">Removed ${data.values_removed} figures for ${esc(lname)}.</span>`;
+  if(!error){$("confirmName").value="";await loadPeriods();}
+};
+
+// ================= navigation =================
+document.querySelectorAll(".tabs [data-v]").forEach(b=>b.onclick=()=>{
+  VIEW=b.dataset.v;document.querySelectorAll(".tabs [data-v]").forEach(x=>x.classList.toggle("on",x===b));
+  ["review","upload","report","admin"].forEach(v=>$("s-"+v).classList.toggle("hidden",v!==VIEW));
+  $("runBox").classList.toggle("hidden",VIEW!=="review");
+  if(VIEW==="report")renderReport();if(VIEW==="upload")loadUploads();if(VIEW==="admin")loadUsers();
+});
+$("lga").onchange=loadPeriods;$("per").onchange=loadMonth;
+start();
+</script>
+</body>
+</html>
