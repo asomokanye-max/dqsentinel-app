@@ -97,6 +97,7 @@ footer{text-align:center;font-size:.75rem;color:var(--mut);padding:10px 16px 24p
     <button data-v="report">Monthly report</button>
     <button data-v="overview">Overview and export</button>
     <button data-v="admin" class="hidden" id="tabAdmin">Admin</button>
+    <a href="snap.html" style="align-self:center;font-size:.85rem;margin-left:6px">Snap Check →</a>
   </div>
 
   <div class="card noprint">
@@ -166,7 +167,7 @@ footer{text-align:center;font-size:.75rem;color:var(--mut);padding:10px 16px 24p
   <!-- admin -->
   <section id="s-admin" class="hidden">
     <div class="card"><h2>Users and roles</h2>
-      <p class="hint">Officer: sees and works on one LGA. State: sees both LGAs (HMIS focal person). Admin: everything, including this page. Pending: no access.</p>
+      <p class="hint">Facility: records officer who uses Snap Check for one facility (set LGA and facility). Officer: sees and works on one LGA. State: sees both LGAs (HMIS focal person). Admin: everything, including this page. Pending: no access.</p>
       <div id="users">…</div></div>
     <div class="card"><h2>Remove all data for one LGA</h2>
       <p class="hint">Use this to delete the synthetic test data before real DHIS2 data is uploaded. It removes facilities, values, runs, flags and time records for the LGA selected above. It cannot be undone.</p>
@@ -175,7 +176,7 @@ footer{text-align:center;font-size:.75rem;color:var(--mut);padding:10px 16px 24p
   </section>
 </div>
 </main>
-<footer>DQ-Sentinel Osun pilot v0.3 · Institute of Public Health, Obafemi Awolowo University, Ile-Ife · Aggregate facility counts only; no patient data · The tool never changes data in DHIS2</footer>
+<footer>DQ-Sentinel Osun pilot v0.4 · Institute of Public Health, Obafemi Awolowo University, Ile-Ife · Aggregate facility counts only; no patient data · The tool never changes data in DHIS2</footer>
 
 <script>
 const SUPABASE_URL="https://xzwjhbepttecghwvoogz.supabase.co";
@@ -320,7 +321,7 @@ function runChecks(DS){
 $("run").onclick=async()=>{
   if(!DS)return;$("run").disabled=true;$("ctlMsg").innerHTML='<span class="hint">Running checks…</span>';
   const res=runChecks(DS);
-  const {data,error}=await db.rpc("save_run",{p_lga:$("lga").value,p_period:$("per").value,p_expected:res.expected,p_received:res.received,p_flags:res.flags,p_settings:{version:"0.3",z:3.5,history:12}});
+  const {data,error}=await db.rpc("save_run",{p_lga:$("lga").value,p_period:$("per").value,p_expected:res.expected,p_received:res.received,p_flags:res.flags,p_settings:{version:"0.4",z:3.5,history:12}});
   $("run").disabled=false;
   if(error){$("ctlMsg").innerHTML='<span class="err">'+esc(error.message)+'</span>';return;}
   $("ctlMsg").innerHTML=`<span class="good">Checks complete: ${res.flags.length} flag(s), ${data.new_flags} new. Earlier decisions were kept.</span>`;
@@ -500,14 +501,16 @@ $("print").onclick=()=>window.print();
 async function loadUsers(){
   const {data,error}=await db.rpc("admin_users");
   if(error){$("users").innerHTML='<span class="err">'+esc(error.message)+'</span>';return;}
-  $("users").innerHTML=`<table><tr><th>Email</th><th>Name</th><th>Role</th><th>LGA</th><th></th></tr>${data.map(u=>`<tr>
+  $("users").innerHTML=`<table><tr><th>Email</th><th>Name</th><th>Role</th><th>LGA</th><th>Facility (Snap Check)</th><th></th></tr>${data.map(u=>`<tr>
     <td>${esc(u.email)}</td><td><input id="un-${u.user_id}" value="${esc(u.full_name||"")}" style="width:150px"></td>
-    <td><select id="ur-${u.user_id}">${["pending","officer","state","admin"].map(r=>`<option ${r===u.role?"selected":""}>${r}</option>`).join("")}</select></td>
+    <td><select id="ur-${u.user_id}">${["pending","facility","officer","state","admin"].map(r=>`<option ${r===u.role?"selected":""}>${r}</option>`).join("")}</select></td>
     <td><select id="ul-${u.user_id}"><option value="">–</option>${LGAS.map(l=>`<option value="${l.code}" ${l.code===u.lga?"selected":""}>${esc(l.name)}</option>`).join("")}</select></td>
+    <td><input id="uf-${u.user_id}" value="${esc(u.facility||"")}" style="width:150px" placeholder="for facility role"></td>
     <td><button class="sm" data-save="${u.user_id}">Save</button> <span id="us-${u.user_id}" class="hint"></span></td></tr>`).join("")}</table>`;
   document.querySelectorAll("[data-save]").forEach(b=>b.onclick=async()=>{const id=b.dataset.save;
     const {error}=await db.rpc("admin_set_role",{p_user:id,p_role:$("ur-"+id).value,p_lga:$("ul-"+id).value||null,p_name:$("un-"+id).value});
-    $("us-"+id).innerHTML=error?'<span class="err">'+esc(error.message)+'</span>':'<span class="good">Saved</span>';});
+    let err=error;if(!err){const r2=await db.rpc("admin_set_facility",{p_user:id,p_facility:$("uf-"+id).value});err=r2.error;}
+    $("us-"+id).innerHTML=err?'<span class="err">'+esc(err.message)+'</span>':'<span class="good">Saved</span>';});
 }
 $("clearLga").onclick=async()=>{
   const lname=$("lga").selectedOptions[0].text;
