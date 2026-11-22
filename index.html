@@ -98,6 +98,7 @@ footer{text-align:center;font-size:.75rem;color:var(--mut);padding:10px 16px 24p
     <button data-v="overview">Overview and export</button>
     <button data-v="admin" class="hidden" id="tabAdmin">Admin</button>
     <a href="snap.html" style="align-self:center;font-size:.85rem;margin-left:6px">Snap Check →</a>
+    <a href="mccd.html" style="align-self:center;font-size:.85rem;margin-left:6px">MCCD Checker →</a>
   </div>
 
   <div class="card noprint">
@@ -167,7 +168,7 @@ footer{text-align:center;font-size:.75rem;color:var(--mut);padding:10px 16px 24p
   <!-- admin -->
   <section id="s-admin" class="hidden">
     <div class="card"><h2>Users and roles</h2>
-      <p class="hint">Facility: records officer who uses Snap Check for one facility (set LGA and facility). Officer: sees and works on one LGA. State: sees both LGAs (HMIS focal person). Admin: everything, including this page. Pending: no access.</p>
+      <p class="hint">Facility: records officer who uses Snap Check for one facility (set LGA and facility). Officer: sees and works on one LGA. State: sees both LGAs (HMIS focal person). Admin: everything, including this page. Doctor: checks death certificates in the MCCD Checker (set the hospital, e.g. Wesley Guild Hospital). Coder: HIM staff who review and code certificates for one hospital (set the hospital). Pending: no access.</p>
       <div id="users">…</div></div>
     <div class="card"><h2>Remove all data for one LGA</h2>
       <p class="hint">Use this to delete the synthetic test data before real DHIS2 data is uploaded. It removes facilities, values, runs, flags and time records for the LGA selected above. It cannot be undone.</p>
@@ -176,7 +177,7 @@ footer{text-align:center;font-size:.75rem;color:var(--mut);padding:10px 16px 24p
   </section>
 </div>
 </main>
-<footer>DQ-Sentinel Osun pilot v0.4 · Institute of Public Health, Obafemi Awolowo University, Ile-Ife · Aggregate facility counts only; no patient data · The tool never changes data in DHIS2</footer>
+<footer>DQ-Sentinel Osun pilot v0.5 · Institute of Public Health, Obafemi Awolowo University, Ile-Ife · Aggregate facility counts only; no patient data · The tool never changes data in DHIS2</footer>
 
 <script>
 const SUPABASE_URL="https://xzwjhbepttecghwvoogz.supabase.co";
@@ -223,6 +224,7 @@ async function start(){
   ME=p||{role:"pending",email:session.user.email};
   $("who").innerHTML=esc(ME.full_name||ME.email)+" · "+esc(ME.role)+(ME.lga?" · "+esc(ME.lga):"")+' · <a href="#" id="lo">Log out</a>';
   $("lo").onclick=e=>{e.preventDefault();logout();};
+  if(ME&&["doctor","coder"].includes(ME.role)){location.href="mccd.html";return;}
   if(!ME||ME.role==="pending"){$("vPending").classList.remove("hidden");return;}
   $("vApp").classList.remove("hidden");
   if(ME.role==="admin")$("tabAdmin").classList.remove("hidden");
@@ -501,11 +503,11 @@ $("print").onclick=()=>window.print();
 async function loadUsers(){
   const {data,error}=await db.rpc("admin_users");
   if(error){$("users").innerHTML='<span class="err">'+esc(error.message)+'</span>';return;}
-  $("users").innerHTML=`<table><tr><th>Email</th><th>Name</th><th>Role</th><th>LGA</th><th>Facility (Snap Check)</th><th></th></tr>${data.map(u=>`<tr>
+  $("users").innerHTML=`<table><tr><th>Email</th><th>Name</th><th>Role</th><th>LGA</th><th>Facility / hospital</th><th></th></tr>${data.map(u=>`<tr>
     <td>${esc(u.email)}</td><td><input id="un-${u.user_id}" value="${esc(u.full_name||"")}" style="width:150px"></td>
-    <td><select id="ur-${u.user_id}">${["pending","facility","officer","state","admin"].map(r=>`<option ${r===u.role?"selected":""}>${r}</option>`).join("")}</select></td>
+    <td><select id="ur-${u.user_id}">${["pending","facility","officer","state","admin","doctor","coder"].map(r=>`<option ${r===u.role?"selected":""}>${r}</option>`).join("")}</select></td>
     <td><select id="ul-${u.user_id}"><option value="">–</option>${LGAS.map(l=>`<option value="${l.code}" ${l.code===u.lga?"selected":""}>${esc(l.name)}</option>`).join("")}</select></td>
-    <td><input id="uf-${u.user_id}" value="${esc(u.facility||"")}" style="width:150px" placeholder="for facility role"></td>
+    <td><input id="uf-${u.user_id}" value="${esc(u.facility||"")}" style="width:150px" placeholder="facility, doctor, coder"></td>
     <td><button class="sm" data-save="${u.user_id}">Save</button> <span id="us-${u.user_id}" class="hint"></span></td></tr>`).join("")}</table>`;
   document.querySelectorAll("[data-save]").forEach(b=>b.onclick=async()=>{const id=b.dataset.save;
     const {error}=await db.rpc("admin_set_role",{p_user:id,p_role:$("ur-"+id).value,p_lga:$("ul-"+id).value||null,p_name:$("un-"+id).value});
