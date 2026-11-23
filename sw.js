@@ -2,8 +2,8 @@
 // Pages, icons and the Supabase library are kept on the phone and refreshed from the
 // network whenever possible. Requests to the database (supabase.co) are NEVER stored,
 // so uploaded figures and decisions are never kept on the device.
-const CACHE = "dqsentinel-v0.5";
-const SHELL = ["./", "./index.html", "./snap.html", "./mccd.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png",
+const CACHE = "dqsentinel-v0.6";
+const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png",
   "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"];
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => Promise.all(SHELL.map(u => c.add(u).catch(() => null)))));
